@@ -90,15 +90,7 @@ export async function DELETE(
       return NextResponse.json({ error: '越权拦截：您只能删除属于您本部门的产品标准' }, { status: 403 });
     }
 
-    // 2. 数据安全性：如果有试卷正在引用此标准文献，拒绝物理删除以防考务记录受损
-    const { exams, questions } = standard._count;
-    if (exams > 0 || questions > 0) {
-      return NextResponse.json({
-        error: `无法删除此标准文献！该文献目前已用于生成 ${exams} 套考核试卷、${questions} 道题目。如确需删除，请先移除相关试卷及题目。`
-      }, { status: 400 });
-    }
-
-    // 3. 磁盘物理文件清理 (避免磁盘文件堆积)
+    // 2. 磁盘物理文件清理 (避免磁盘文件堆积)
     if (standard.filePath) {
       try {
         const fullPath = join(process.cwd(), 'public', standard.filePath);
@@ -110,14 +102,24 @@ export async function DELETE(
       }
     }
 
-    // 4. 数据库删除
-    await db.standard.delete({
-      where: { id },
-    });
+    // 3. 数据库原子化删除与安全解绑 (Prisma 事务)
+    await db.$transaction([
+      db.exam.updateMany({
+        where: { standardId: id },
+        data: { standardId: null }
+      }),
+      db.question.updateMany({
+        where: { standardId: id },
+        data: { standardId: null }
+      }),
+      db.standard.delete({
+        where: { id }
+      })
+    ]);
 
     return NextResponse.json({
       success: true,
-      message: '标准文献及磁盘物理文件已成功彻底删除！',
+      message: '标准文献及磁盘物理文件已成功彻底删除，相关试卷及题目已安全解绑保留！',
     });
   } catch (error) {
     console.error('删除标准文献失败:', error);

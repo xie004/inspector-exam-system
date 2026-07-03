@@ -704,7 +704,7 @@ export default function CreatorDashboard() {
         triggerMessage('success', '考核任务删除成功！');
         loadCoreData();
       } else {
-        triggerMessage('error', data.error || '删除失败');
+        alert(`【无法删除考试任务】\n\n原因：${data.error || '该任务目前已有考生参与答题并留存了答卷数据。'}\n\n解决办法：为了保障考生成绩数据安全，您需要先在“批阅中心”或“成绩管理”中，将该考试任务下所有已关联的考生答卷记录删除清空，然后才能下架并删除该考试任务。`);
       }
     } catch (err) {
       triggerMessage('error', '连接网络失败');
@@ -721,10 +721,27 @@ export default function CreatorDashboard() {
         triggerMessage('success', '试卷及旗下关联题库已级联原子化物理清空！');
         loadCoreData();
       } else {
-        triggerMessage('error', data.error || '删除失败');
+        alert(`【无法删除试卷】\n\n原因：${data.error || '该试卷目前已被用于发布在线考务任务。'}\n\n解决办法：请先前往“考务管理”中，下架并彻底删除与该试卷关联的考试任务，然后再来删除此试卷。`);
       }
     } catch (err) {
       triggerMessage('error', '网络失败');
+    }
+  };
+
+  // 删除考生答卷记录
+  const handleDeleteRecord = async (id: string, examineeName: string, taskTitle: string) => {
+    if (!confirm(`警告：您确认要彻底删除考生 [${examineeName}] 针对考核任务 [${taskTitle}] 的答卷记录吗？\n删除后该考生的所有作答及成绩记录将被物理清除，且不可恢复！`)) return;
+    try {
+      const res = await fetch(`/api/creator/records/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        triggerMessage('success', '该考生的答卷及作答记录已成功彻底删除！');
+        loadCoreData();
+      } else {
+        triggerMessage('error', data.error || '删除失败');
+      }
+    } catch (err) {
+      triggerMessage('error', '连接网络失败');
     }
   };
 
@@ -1165,6 +1182,13 @@ export default function CreatorDashboard() {
                           className="px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-xs font-medium text-slate-900 dark:text-white rounded-lg active:scale-95 transition-all shadow-md shadow-blue-600/10"
                         >
                           进入 AI 阅卷室
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRecord(row.id, row.examineeName, row.taskTitle)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-white/[0.04] rounded-lg active:scale-95 transition-all"
+                          title="删除此答卷记录"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -1913,20 +1937,29 @@ export default function CreatorDashboard() {
                           )}
                         </td>
                         <td className="py-4 px-4 text-right">
-                          {row.status === 'ONGOING' ? (
-                            <span className="text-[10px] text-slate-500 dark:text-slate-500 italic">在线答题中</span>
-                          ) : (
+                          <div className="flex items-center justify-end gap-2">
+                            {row.status === 'ONGOING' ? (
+                              <span className="text-[10px] text-slate-500 dark:text-slate-500 italic mr-2">在线答题中</span>
+                            ) : (
+                              <button
+                                onClick={() => openGradingRoom(row.id)}
+                                className={`px-2.5 py-1 text-[10px] font-semibold rounded active:scale-95 transition-all ${
+                                  row.status === 'SUBMITTED'
+                                    ? 'bg-amber-500 hover:bg-amber-400 text-[#030712] shadow-md shadow-amber-500/10'
+                                    : 'bg-white/[0.03] hover:bg-white/[0.06] border border-slate-250 dark:border-white/[0.08] text-slate-700 dark:text-slate-300'
+                                }`}
+                              >
+                                {row.status === 'SUBMITTED' ? '在线批阅' : '重新核对'}
+                              </button>
+                            )}
                             <button
-                              onClick={() => openGradingRoom(row.id)}
-                              className={`px-2.5 py-1 text-[10px] font-semibold rounded active:scale-95 transition-all ${
-                                row.status === 'SUBMITTED'
-                                  ? 'bg-amber-500 hover:bg-amber-400 text-[#030712] shadow-md shadow-amber-500/10'
-                                  : 'bg-white/[0.03] hover:bg-white/[0.06] border border-slate-250 dark:border-white/[0.08] text-slate-700 dark:text-slate-300'
-                              }`}
+                              onClick={() => handleDeleteRecord(row.id, row.examineeName, row.taskTitle)}
+                              className="p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-white/[0.04] rounded active:scale-95 transition-all"
+                              title="删除此答卷记录"
                             >
-                              {row.status === 'SUBMITTED' ? '在线批阅' : '重新核对'}
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     ))}
