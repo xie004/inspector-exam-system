@@ -63,7 +63,7 @@ export async function POST(req: Request) {
       name: 'auth_token',
       value: token,
       httpOnly: true, // 防 XSS 攻击，脚本无法读取
-      secure: process.env.NODE_ENV === 'production', // 仅在生产环境启用 HTTPS 传输
+      secure: process.env.NODE_ENV === 'production' && process.env.SECURE_COOKIE !== 'false', // 支持局域网 HTTP 部署
       sameSite: 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60, // 7 天有效期
