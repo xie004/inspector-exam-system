@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 检验员智能出题与考核系统 (Inspector Exam System)
 
-## Getting Started
+这是一个基于 **Next.js (App Router)**、**Prisma** 和 **多模态大模型 (AI)** 开发的智能出题与在线考核管理系统。该系统不仅能针对专业的产品标准/规范（支持扫描版 PDF 智能 OCR 解析）快速出题，同时也支持针对通用教材进行检验技能的日常培训、考核与客观/主观题的 AI 联合阅卷。
 
-First, run the development server:
+---
 
+## 🌟 项目核心亮点
+
+1. **多模态 AI 智能出题**
+   - **大文件 / 扫描件稳定 OCR**：针对扫描版 PDF 进行自动分页与 750px 降阻高清图像转换，通过并发控制（3路并行，`batchSize=1`）调用 Vision 多模态大模型进行高精度的条款内容提取，彻底告别接口超时与大文件限流问题。
+   - **一键智能出题**：AI 自动根据标准条款生成多样化的专业题型，包括单选题、多选题、判断题、填空题和简答题。
+
+2. **多模式考务管理 (正式考试 vs 自主训练)**
+   - **正式考试 (EXAM)**：需要出题人/考评员在后台对简答题进行打分，手动提交后发布最终成绩。支持高对比度评分滑块（Slider）和智能分值 Badge。
+   - **自主训练 (TRAINING)**：考生交卷后系统自动评判客观题，并在后台自动触发 AI 对主观题进行预判定分，无需人工干预即可在数秒内自动出分。
+
+3. **双端极致交互体验**
+   - **单选题极速切题**：考生在作答单选题时，选中答案后系统立即瞬间（0 毫秒延迟，无过渡动效）自动切换至下一题，实现行云流水的答题体验。
+   - **多选题过渡醒目提示**：由单选题或判断题过渡到多选题时，卡片顶部提供亮眼的橙色横幅 `提示：多选题有一个或多个答案`，并配以双层呼吸灯闪烁动效（Tailwind `animate-ping`），防止考生混淆题型。
+   - **全链路重名拦截**：出题向导自动以所选标准作为试卷默认名称，前台操作与后台 API 接口（Prisma `db.exam.findFirst`）均实施防重名校验，多重保障数据唯一性。
+   - **实时阅卷进度条**：考生提交答卷后，列表卡片实时渲染 `AI阅卷中 (X/Y)` 进度，并在后台开启每 4 秒一次的智能轮询，批阅完成后无感刷新成绩。
+
+4. **多维度统计看板**
+   - 实现正式考试与自主训练的**数据统计物理隔离**。
+   - 提供及格率分布直方图、标准条款掌握雷达图、以及错题排行榜等可视化分析，帮助管理者清晰掌握人员技能短板。
+
+---
+
+## 🛠️ 技术栈
+
+- **前端框架**：Next.js 16 (React 19, TS, Tailwind CSS)
+- **后端 API**：Next.js Route Handlers
+- **数据库 ORM**：Prisma (支持 SQLite / PostgreSQL / MySQL)
+- **AI 引擎**：集成多模态大语言模型 (支持 Qwen/DeepSeek/Claude 等)，用于 OCR 识别、考题生成与智能阅卷。
+
+---
+
+## 📈 项目现状
+
+目前，项目的核心研发流程已**全部走通并完成多轮优化**：
+- [x] 扫描版 PDF 在 750px 分辨率以及 `batchSize=1` 大模型提取下，运行平稳快速，16 页大型 PDF 仅用 30-40 秒即可完成高精度解析入库。
+- [x] 考生作答、自动切题、多选题呼吸灯横幅、AI 批改与实时轮询出分等前端 UX 细节打磨完毕。
+- [x] 正式考试与自主训练在发布端、数据统计看板、考生阅卷端的数据链路已全部实现物理隔离与隔离展示。
+- [x] 整个项目代码通过了 TypeScript 和 Next.js 的生产环境构建测试 (`npm run build`)，编译正常无报错。
+
+---
+
+## 🚀 快速开始
+
+### 1. 准备环境
+确保安装了 [Node.js](https://nodejs.org) (v18+) 及常用包管理工具。
+
+### 2. 安装依赖
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. 初始化数据库
+```bash
+npx prisma db push
+npx prisma db seed
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 4. 运行开发服务器
+```bash
+npm run dev
+```
+打开 [http://localhost:3000](http://localhost:3000) 即可访问本系统。
