@@ -1,0 +1,174 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 用户表
+model User {
+  id            String       @id @default(uuid())
+  username      String       @unique
+  passwordHash  String
+  role          String       // "ADMIN" | "CREATOR" | "EXAMINEE" (管理员、部门出题员、普通考试用户)
+  realName      String       // 真实姓名
+  employeeId    String       @unique // 工号 (唯一键)
+  sectionName   String?      // 科室名称
+  departmentId  String?      // 所属部门 ID (CREATOR 和 EXAMINEE 绑定)
+  department    Department?  @relation(fields: [departmentId], references: [id])
+  status        String       @default("ACTIVE") // "ACTIVE" | "DISABLED"
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  
+  // 关联的考试记录 (作为考生)
+  examRecords   ExamRecord[] @relation("Examinee")
+  // 阅卷记录 (作为出题员)
+  reviewedRecords ExamRecord[] @relation("Reviewer")
+}
+
+// 部门表
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  users     User[]
+  standards Standard[]
+  exams     Exam[]
+  tasks     ExamTask[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+// 智能硬件/产品标准文献表
+model Standard {
+  id            String     @id @default(uuid())
+  title         String     // 标准名称 (例如: GB/T 2828.1-2012)
+  fileType      String     // "pdf" | "docx" | "image"
+  filePath      String?    // 存储上传的文件路径
+  extractedText String     // 提取出的文本内容 (大文本)
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id])
+  exams         Exam[]
+  questions     Question[]
+  status        String     @default("AVAILABLE") // "AVAILABLE" | "PROCESSING" | "FAILED" (文件解析状态)
+  progress      String     @default("")          // 页面解析进度 (例如 "12/46")
+  errorMsg      String?                          // 解析失败错误信息
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+// 试卷表
+model Exam {
+  id            String     @id @default(uuid())
+  title         String     // 试卷标题
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id])
+  standardId    String?
+  standard      Standard?  @relation(fields: [standardId], references: [id])
+  timeLimit     Int        @default(90) // 考试时长 (分钟)
+  questions     Question[]
+  tasks         ExamTask[]
+  status        String     @default("COMPLETED") // "COMPLETED" | "GENERATING" | "FAILED" (AI异步命题状态)
+  progress      String     @default("")          // 命题进度描述 (例如 "正在研读标准", "已生成填空题")
+  errorMsg      String?                          // 命题失败错误信息
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+// 题目表
+model Question {
+  id            String       @id @default(uuid())
+  examId        String
+  exam          Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  standardId    String?
+  standard      Standard?    @relation(fields: [standardId], references: [id])
+  type          String       // "SINGLE" | "MULTIPLE" | "JUDGE" | "FILL" | "SHORT" (单选、多选、判断、填空、简答)
+  content       String       // 题目题干
+  options       String?      // 选项，JSON 字符串 (例如: ["A. xxx", "B. xxx"])，仅选择题有效
+  correctAnswer String       // 参考答案 (多选题用逗号或 JSON 存储)
+  score         Float        // 分值
+  explanation   String?      // 解析与依据的标准条款
+  knowledgePoint String      // 关联的知识点/标准条款 (例如: "第5.2条 采样规则")
+  createdAt     DateTime     @default(now())
+  
+  answers       Answer[]
+}
+
+// 考试任务表 (发布一次考试就是一个任务)
+model ExamTask {
+  id            String       @id @default(uuid())
+  title         String       // 任务名称 (例如: 2026年第二季度检测员能力考核)
+  examId        String
+  exam          Exam         @relation(fields: [examId], references: [id])
+  departmentId  String
+  department    Department   @relation(fields: [departmentId], references: [id])
+  startTime     DateTime     // 允许开始考试的时间
+  endTime       DateTime     // 允许结束考试的时间
+  timeLimit     Int          // 答题时长(分钟)，默认继承试卷时长
+  status        String       @default("PUBLISHED") // "PUBLISHED" | "ENDED"
+  type          String       @default("EXAM")      // "EXAM" (正式考试) | "TRAINING" (自主训练)
+  createdAt     DateTime     @default(now())
+  
+  records       ExamRecord[]
+}
+
+// 答卷记录表
+model ExamRecord {
+  id            String     @id @default(uuid())
+  taskId        String
+  task          ExamTask   @relation(fields: [taskId], references: [id])
+  examineeId    String
+  examinee      User       @relation("Examinee", fields: [examineeId], references: [id])
+  score         Float      @default(0) // 总得分
+  status        String     @default("ONGOING") // "ONGOING" | "SUBMITTED" | "GRADED" (进行中、已提交、已阅卷)
+  startedAt     DateTime   @default(now())
+  submittedAt   DateTime?
+  gradedAt      DateTime?
+  reviewerId    String?    // 阅卷出题员 ID
+  reviewer      User?      @relation("Reviewer", fields: [reviewerId], references: [id])
+  
+  answers       Answer[]
+  createdAt     DateTime   @default(now())
+}
+
+// 单题作答表
+model Answer {
+  id            String     @id @default(uuid())
+  recordId      String
+  record        ExamRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      Question   @relation(fields: [questionId], references: [id])
+  answerContent String     // 考生答案
+  score         Float      @default(0) // 单题得分
+  isCorrect     Boolean    @default(false) // 是否正确 (主要用于客观题一键统计)
+  
+  // AI 智能判卷字段
+  aiScore       Float?     // AI 推荐得分
+  aiComment     String?    // AI 判卷理由与差异评语
+  
+  // 出题员复核字段
+  reviewerComment String?  // 出题员手动批语
+  updatedAt     DateTime   @updatedAt
+}
+
+// 全局 AI 接口配置表 (单条记录，ID 默认为 "default")
+model AiConfig {
+  id                 String   @id @default("default")
+  // 文本分析模型配置 (出题、判卷、数据分析)
+  baseUrl            String   @default("https://api.openai.com/v1")
+  apiKey             String
+  modelName          String   @default("gpt-4o")
+  
+  // 多模态视觉模型配置 (PDF OCR)
+  visionBaseUrl      String?
+  visionApiKey       String?
+  visionModelName    String?
+  
+  // 向量嵌入模型配置 (语义检索与精准匹配)
+  embeddingBaseUrl   String?
+  embeddingApiKey    String?
+  embeddingModelName String?
+  
+  updatedAt          DateTime @updatedAt
+}
